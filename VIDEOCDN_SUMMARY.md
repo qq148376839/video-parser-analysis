@@ -126,6 +126,7 @@ https://m1-a1.cloud.nnpp.vip:2223/api/v/?z={z}&jx={video_url}&s1ig={s1ig}&g={g}
 - `analyze_api_params_persistent.js` - Tampermonkey脚本 ✅
 - `analyze_api_params_v2.js` - Console脚本 ✅
 - `analyze_params_generation.js` - 参数分析脚本 ✅
+- `capture_api_params.py` - 参数捕获工具（新增）✅
 
 ### 文档
 
@@ -134,6 +135,7 @@ https://m1-a1.cloud.nnpp.vip:2223/api/v/?z={z}&jx={video_url}&s1ig={s1ig}&g={g}
 - `TAMPERMONKEY_SETUP.md` - Tampermonkey指南 ✅
 - `USAGE_GUIDE.md` - 使用指南 ✅
 - `PROJECT_STRUCTURE.md` - 项目结构 ✅
+- `PARAM_CAPTURE_GUIDE.md` - 参数捕获指南（新增）✅
 - `VIDEOCDN_SUMMARY.md` - 本文件 ✅
 
 ## 🗑️ 已清理的文件
@@ -176,24 +178,49 @@ if m3u8_url:
 2. **s1ig参数**: 当前使用固定值，可能是固定值
 3. **g参数**: 当前使用固定值"b2.bdzy"，可能需要从m3u8 URL中提取
 
+### 参数过期问题
+
+如果API返回错误信息"联系QQ 3366 129 856 获取json版api地址"，说明参数已过期。
+
+**解决方案：**
+
+1. **使用参数捕获工具**（推荐）:
+   ```bash
+   python3 capture_api_params.py
+   ```
+   脚本会自动捕获最新的API参数并保存到 `captured_api_params.json`。
+
+2. **手动更新参数**:
+   - 查看 `captured_api_params.json` 文件
+   - 更新 `direct_videocdn_parser_simple.py` 中的参数值
+
+3. **使用Tampermonkey脚本**:
+   - 安装 `analyze_api_params_persistent.js` 脚本
+   - 访问解析网站，在Console中运行 `_analyzeApiParams.showCalls()`
+
+详细说明请参考 [参数捕获指南](PARAM_CAPTURE_GUIDE.md)
+
 ### 限制
 
 - 如果API参数需要动态生成，可能需要使用浏览器分析脚本
 - 某些情况下可能需要特定的Cookie或Session
+- 参数可能定期过期，需要定期更新
 
 ## 🔮 未来改进
 
 ### 可能的改进方向
 
 1. **动态参数生成**: 如果z、s1ig或g参数需要动态生成，实现生成逻辑
-2. **多视频源支持**: 支持更多视频网站
-3. **批量处理**: 支持批量解析多个视频
-4. **错误重试**: 添加自动重试机制
-5. **缓存机制**: 添加结果缓存
+2. **自动参数更新**: 实现参数过期检测和自动更新机制
+3. **多视频源支持**: 支持更多视频网站
+4. **批量处理**: 支持批量解析多个视频
+5. **错误重试**: 添加自动重试机制
+6. **缓存机制**: 添加结果缓存
 
 ## 📚 相关资源
 
 - [完整API文档](VIDEOCDN_IHELPY_PARSER.md)
+- [参数捕获指南](PARAM_CAPTURE_GUIDE.md) - **参数过期时必读**
 - [项目结构说明](PROJECT_STRUCTURE.md)
 - [使用指南](USAGE_GUIDE.md)
 

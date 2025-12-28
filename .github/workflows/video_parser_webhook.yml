@@ -1,0 +1,92 @@
+name: Video Parser Webhook API
+
+on:
+  # 通过webhook触发
+  repository_dispatch:
+    types: [parse-video]
+
+jobs:
+  parse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests brotli
+      
+      - name: Parse video
+        id: parse
+        run: |
+          VIDEO_URL="${{ github.event.client_payload.video_url }}"
+          
+          if [ -z "$VIDEO_URL" ]; then
+            echo "错误: 未提供video_url"
+            exit 1
+          fi
+          
+          echo "解析视频: $VIDEO_URL"
+          
+          # 运行解析脚本
+          python3 -c "
+          import sys
+          sys.path.insert(0, '.')
+          from direct_videocdn_parser_simple import DirectVideoCdnParserSimple
+          import json
+          
+          parser = DirectVideoCdnParserSimple()
+          m3u8_url = parser.parse_video('$VIDEO_URL')
+          
+          if m3u8_url:
+              result = {
+                  'success': True,
+                  'video_url': '$VIDEO_URL',
+                  'm3u8_url': m3u8_url
+              }
+          else:
+              result = {
+                  'success': False,
+                  'video_url': '$VIDEO_URL',
+                  'error': '解析失败'
+              }
+          
+          print(json.dumps(result))
+          " > result.json
+          
+          M3U8_URL=$(python3 -c "import json; print(json.load(open('result.json')).get('m3u8_url', ''))")
+          echo "m3u8_url=$M3U8_URL" >> $GITHUB_OUTPUT
+      
+      - name: Output result
+        run: |
+          cat result.json
+      
+      - name: Comment on issue (if triggered from issue)
+        if: github.event_name == 'issues'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const result = JSON.parse(fs.readFileSync('result.json', 'utf8'));
+            
+            if (result.success) {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `✅ 解析成功！\n\nm3u8链接: ${result.m3u8_url}`
+              });
+            } else {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `❌ 解析失败: ${result.error}`
+              });
+            }
+

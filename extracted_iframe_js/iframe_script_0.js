@@ -1,0 +1,1 @@
+function c1(e){let t=document.getElementsByTagName("head")[0],n=document.createElement("link");n.rel="stylesheet",n.href=e,t.appendChild(n)}function j1(e){let t=document.getElementsByTagName("head")[0],n=document.createElement("script");n.src=e,t.appendChild(n)}

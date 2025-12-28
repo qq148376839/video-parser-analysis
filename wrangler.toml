@@ -1,0 +1,22 @@
+# Cloudflare Workers 配置文件
+name = "video-parser-worker"
+main = "cloudflare_worker_parser.js"
+compatibility_date = "2024-01-01"
+
+# 环境变量（存储默认参数）
+# 注意：这些值需要定期更新
+[vars]
+DEFAULT_Z_PARAM = "b413af76b43b1a0abc231718862417e2"
+DEFAULT_S1IG_PARAM = "11397"
+DEFAULT_G_PARAM = ""
+
+# KV存储配置（可选，用于存储和更新z参数）
+# 首先需要创建KV命名空间:
+# wrangler kv:namespace create "Z_PARAMS_KV"
+# wrangler kv:namespace create "Z_PARAMS_KV" --preview
+#
+# [[kv_namespaces]]
+# binding = "Z_PARAMS_KV"
+# id = "your-kv-namespace-id"
+# preview_id = "your-preview-kv-namespace-id"
+

@@ -1,0 +1,101 @@
+name: Video Parser Simple
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: '视频URL'
+        required: true
+        type: string
+
+jobs:
+  parse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests brotli
+      
+      - name: Parse video
+        id: parse
+        run: |
+          VIDEO_URL="${{ github.event.inputs.video_url }}"
+          
+          echo "解析视频: $VIDEO_URL"
+          
+          # 运行解析脚本
+          python3 << 'PYTHON_SCRIPT'
+          import sys
+          import os
+          import json
+          import io
+          import contextlib
+          
+          sys.path.insert(0, '.')
+          
+          from direct_videocdn_parser_simple import DirectVideoCdnParserSimple
+          
+          video_url = os.environ.get('VIDEO_URL', '')
+          
+          # 捕获输出
+          output = io.StringIO()
+          with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+              parser = DirectVideoCdnParserSimple()
+              m3u8_url = parser.parse_video(video_url)
+          
+          if m3u8_url:
+              result = {
+                  'success': True,
+                  'video_url': video_url,
+                  'm3u8_url': m3u8_url
+              }
+          else:
+              result = {
+                  'success': False,
+                  'video_url': video_url,
+                  'error': '解析失败',
+                  'output': output.getvalue()[-1000:] if output.getvalue() else ''
+              }
+          
+          # 输出结果到文件
+          with open('result.json', 'w', encoding='utf-8') as f:
+              json.dump(result, f, ensure_ascii=False, indent=2)
+          
+          # 也输出到stdout（会在Actions日志中显示）
+          print(json.dumps(result, ensure_ascii=False))
+          PYTHON_SCRIPT
+          VIDEO_URL="${{ github.event.inputs.video_url }}"
+      
+      - name: Output result
+        run: |
+          echo "=========================================="
+          echo "解析结果:"
+          echo "=========================================="
+          cat result.json
+          echo ""
+          
+          # 提取m3u8链接
+          M3U8_URL=$(python3 -c "import json; print(json.load(open('result.json')).get('m3u8_url', ''))" 2>/dev/null || echo "")
+          
+          if [ -n "$M3U8_URL" ]; then
+            echo "✅ 解析成功！"
+            echo "m3u8链接: $M3U8_URL"
+          else
+            echo "❌ 解析失败"
+          fi
+      
+      - name: Create artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: parse-result
+          path: result.json
+          retention-days: 7
+

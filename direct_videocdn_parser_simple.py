@@ -45,23 +45,100 @@ class DirectVideoCdnParserSimple:
             'sec-ch-ua-platform': '"Windows"',
         })
     
-    def construct_api_url(self, video_url: str, g_param: str = None) -> str:
+    def load_params_from_file(self) -> Optional[Dict]:
+        """从捕获的参数文件中加载参数"""
+        try:
+            with open('captured_api_params.json', 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if data.get('captured_params'):
+                    # 返回最新的参数
+                    latest = data['captured_params'][-1]
+                    return {
+                        'z': latest.get('z'),
+                        's1ig': latest.get('s1ig'),
+                        'g': latest.get('g')
+                    }
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            print(f"   ⚠️ 加载参数文件失败: {e}")
+        return None
+    
+    def get_z_param_from_api_service(self, video_url: str, api_url: str = None) -> Optional[str]:
+        """从API服务获取z参数（服务器端方案）"""
+        if api_url is None:
+            api_url = "http://localhost:5000/api/get_z_param"
+        
+        try:
+            response = requests.get(api_url, params={'video_url': video_url}, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('success') and data.get('z_param'):
+                    return data['z_param']
+        except Exception as e:
+            print(f"   ⚠️ 从API服务获取z参数失败: {e}")
+        return None
+    
+    def get_z_param_from_website(self, video_url: str) -> Optional[str]:
+        """直接从解析网站提取z参数（无需浏览器）"""
+        try:
+            parser_url = f"https://videocdn.ihelpy.net/jiexi/m1907.html?m1907jx={video_url}"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            }
+            
+            response = self.session.get(parser_url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                html = response.text
+                
+                # 从API调用URL中提取z参数
+                import re
+                api_url_pattern = r'https://[^/]+/api/v/\?[^"\'<>]*z=([a-f0-9]{32})'
+                matches = re.findall(api_url_pattern, html, re.IGNORECASE)
+                if matches:
+                    return matches[0]
+        except Exception as e:
+            print(f"   ⚠️ 从网站提取z参数失败: {e}")
+        return None
+    
+    def construct_api_url(self, video_url: str, g_param: str = None, 
+                          z_value: str = None, s1ig_value: str = None) -> str:
         """构造API URL"""
         print(f"\n[步骤1] 构造API URL...")
         
         # 基于分析结果，API URL格式为：
         # https://m1-a1.cloud.nnpp.vip:2223/api/v/?z={z}&jx={video_url}&s1ig={s1ig}&g={g}
         
-        # 从分析结果中提取的参数（可能需要动态生成，但先使用固定值测试）
-        z_value = "e8e56ecaca35c6229baa93884b6b7323"
-        s1ig_value = "11402"
+        # 尝试从文件加载参数
+        file_params = self.load_params_from_file()
+        if file_params:
+            print(f"   💡 从 captured_api_params.json 加载参数")
+            if not z_value:
+                z_value = file_params.get('z')
+            if not s1ig_value:
+                s1ig_value = file_params.get('s1ig')
+            if not g_param:
+                g_param = file_params.get('g')
         
-        # g参数：从实际请求中发现是 "b2.bdzy"，可能是动态生成的
-        # 可能是从m3u8 URL中提取的域名部分
+        # 如果z参数仍未设置，尝试从网站提取（服务器端方案）
+        if not z_value:
+            print(f"   💡 尝试从解析网站提取z参数...")
+            z_value = self.get_z_param_from_website(video_url)
+            if z_value:
+                print(f"   ✅ 成功从网站提取z参数: {z_value[:16]}...")
+        
+        # 如果仍未设置，使用默认值（可能已过期）
+        if not z_value:
+            z_value = "b413af76b43b1a0abc231718862417e2"  # 最新捕获的参数
+        if not s1ig_value:
+            s1ig_value = "11397"  # 最新捕获的参数
+        
+        # g参数：从最新捕获中发现可能是空字符串，可能是可选的
+        # 如果未设置，使用空字符串（从最新捕获中发现）
         if g_param is None:
-            # 尝试从之前的m3u8 URL中提取
-            # 例如: https://b2.bdzybf22.com/... -> b2.bdzy
-            g_param = "b2.bdzy"  # 默认值，可能需要动态生成
+            g_param = ""  # 最新捕获中g参数为空字符串
         
         api_url = f"https://m1-a1.cloud.nnpp.vip:2223/api/v/?z={z_value}&jx={video_url}&s1ig={s1ig_value}&g={g_param}"
         
@@ -197,6 +274,12 @@ class DirectVideoCdnParserSimple:
             print(f"   解码后长度: {len(content)} 字符")
             print(f"   内容预览: {content[:200]}")
             
+            # 检查是否是错误信息
+            if '联系QQ' in content or '获取json版api地址' in content:
+                print(f"   ⚠️ API返回错误信息，参数可能已过期")
+                print(f"   💡 建议运行: python3 capture_api_params.py 重新捕获参数")
+                return None
+            
             # 尝试解析JSON
             try:
                 json_data = json.loads(content)
@@ -314,7 +397,8 @@ class DirectVideoCdnParserSimple:
                 for i, line in enumerate(response.iter_lines(decode_unicode=True)):
                     if i >= 5:
                         break
-                    content += line + '\n'
+                    if line:
+                        content += str(line) + '\n'
                 
                 if content.strip().startswith('#EXTM3U'):
                     print(f"   ✅ m3u8链接有效")

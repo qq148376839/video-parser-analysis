@@ -1,0 +1,57 @@
+name: Update API Params
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 每天UTC 2点（北京时间10点）
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install dependencies
+        run: |
+          pip install playwright requests brotli
+          python3 -m playwright install chromium
+      
+      - name: Capture API params
+        run: python3 capture_iframe_js.py
+      
+      - name: Extract z param
+        id: extract_z
+        run: |
+          Z_PARAM=$(python3 -c "
+          import json
+          data = json.load(open('captured_iframe_js.json'))
+          for call in data.get('api_calls', []):
+              if 'z' in call.get('params', {}):
+                  print(call['params']['z'])
+                  break
+          ")
+          if [ -z "$Z_PARAM" ]; then
+            echo "错误: 未找到z参数"
+            exit 1
+          fi
+          echo "z_param=$Z_PARAM" >> $GITHUB_OUTPUT
+          echo "找到z参数: $Z_PARAM"
+      
+      - name: Update wrangler.toml
+        run: |
+          # 更新wrangler.toml中的z参数
+          sed -i "s/DEFAULT_Z_PARAM = \".*\"/DEFAULT_Z_PARAM = \"${{ steps.extract_z.outputs.z_param }}\"/" wrangler.toml
+      
+      - name: Commit and push
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add wrangler.toml captured_iframe_js.json
+          git commit -m "Auto-update API params: z=${{ steps.extract_z.outputs.z_param }}" || exit 0
+          git push
+
