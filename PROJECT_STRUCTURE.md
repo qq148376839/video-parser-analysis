@@ -4,129 +4,174 @@
 
 ```
 video-parser-analysis/
-├── direct_videocdn_parser_simple.py    # ✅ videocdn.ihelpy.net 解析器（主要脚本）
-├── analyze_videocdn_ihelpy.py          # 🔍 videocdn.ihelpy.net 浏览器分析脚本
-├── analyze_api_params_persistent.js    # 🔍 Tampermonkey参数分析脚本
-├── analyze_api_params_v2.js            # 🔍 Console参数分析脚本
-├── analyze_params_generation.js        # 🔍 参数生成逻辑分析脚本
+├── api_server.py              # FastAPI主服务文件（待创建）
+├── config.json.example        # 配置文件示例
+├── config.json                # 实际配置文件（需要手动创建）
+├── requirements.txt           # Python依赖
+├── Dockerfile                 # Docker镜像构建文件（待创建）
+├── docker-compose.yml         # Docker Compose配置（待创建）
+├── NAS_DEPLOYMENT_PRD.md     # NAS部署产品需求文档
+├── README.md                  # 项目说明文档
 │
-├── VIDEOCDN_IHELPY_PARSER.md          # 📖 videocdn.ihelpy.net 完整文档
-├── BYPASS_DEBUGGER_GUIDE.md           # 📖 绕过Debugger指南
-├── TAMPERMONKEY_SETUP.md              # 📖 Tampermonkey安装指南
-├── USAGE_GUIDE.md                     # 📖 使用指南
-├── PROJECT_STRUCTURE.md                # 📖 本文件
-├── README.md                           # 📖 项目总览
+├── data/                      # 数据目录（挂载到容器）
+│   ├── config.json           # 配置文件（从项目根目录复制）
+│   ├── z_params.json         # z参数存储文件
+│   └── logs/                 # 日志目录
 │
-├── requirements.txt                    # 📦 Python依赖
-├── .gitignore                          # 🚫 Git忽略文件
+├── parsers/                   # 解析器模块
+│   ├── __init__.py
+│   ├── z_param_parser.py     # z参数解析器（待创建）
+│   ├── decrypt_parser.py     # 解密解析器（final_direct_parser_v2.py）
+│   └── search_parser.py      # 资源检索解析器（待创建）
 │
-└── [其他项目的文件]                    # 其他解析器的相关文件
+├── utils/                     # 工具模块
+│   ├── __init__.py
+│   ├── z_param_manager.py    # z参数管理器（待创建）
+│   ├── config_loader.py      # 配置加载器（待创建）
+│   └── logger.py             # 日志工具（待创建）
+│
+├── jx2s0_analysis/            # jx2s0解析器分析（保留）
+│   └── ...
+│
+└── archive/                   # 归档目录（与NAS部署无关的文件）
+    ├── GitHub Actions相关文件
+    ├── Cloudflare Workers相关文件
+    ├── 分析和捕获脚本
+    └── 输出文件（JSON、HTML、M3U8等）
 ```
 
 ## 📝 文件说明
 
-### 核心脚本
+### 核心文件
 
-#### `direct_videocdn_parser_simple.py`
-**用途**: videocdn.ihelpy.net 的直接解析器  
-**状态**: ✅ 已完成  
-**使用方法**: `python direct_videocdn_parser_simple.py`
+- **api_server.py**: FastAPI主服务，提供API接口
+- **config.json.example**: 配置文件模板，包含API站点配置
+- **config.json**: 实际配置文件（需要从example复制并修改）
+- **Dockerfile**: Docker镜像构建文件
+- **docker-compose.yml**: Docker Compose配置（群晖推荐使用）
 
-#### `analyze_videocdn_ihelpy.py`
-**用途**: 使用浏览器自动化分析videocdn.ihelpy.net  
-**状态**: ✅ 已完成  
-**使用方法**: `python analyze_videocdn_ihelpy.py`
+### 数据目录（/data）
 
-### 分析工具
+- **config.json**: 配置文件，包含API站点列表
+- **z_params.json**: z参数存储文件，自动生成
+- **logs/**: 日志目录，自动生成
 
-#### `analyze_api_params_persistent.js`
-**用途**: Tampermonkey用户脚本，持久化分析API参数  
-**状态**: ✅ 已完成  
-**使用方法**: 安装Tampermonkey后创建新脚本
+### 解析器模块
 
-#### `analyze_api_params_v2.js`
-**用途**: Console脚本，分析API参数（页面刷新后需重新运行）  
-**状态**: ✅ 已完成  
-**使用方法**: 在浏览器Console中运行
+- **z_param_parser.py**: z参数方式解析器
+- **decrypt_parser.py**: 解密方式解析器（备选方案）
+- **search_parser.py**: 资源检索和批量解析器
 
-#### `analyze_params_generation.js`
-**用途**: 分析z和g参数的生成逻辑  
-**状态**: ✅ 已完成  
-**使用方法**: 在浏览器Console中运行
+### 工具模块
 
-### 文档
+- **z_param_manager.py**: z参数管理器，负责过期检测和自动更新
+- **config_loader.py**: 配置加载器，读取config.json
+- **logger.py**: 日志工具，统一日志格式
 
-#### `VIDEOCDN_IHELPY_PARSER.md`
-**内容**: videocdn.ihelpy.net 解析器的完整文档  
-**包含**: API说明、使用方法、故障排除等
+## 🔧 配置文件说明
 
-#### `BYPASS_DEBUGGER_GUIDE.md`
-**内容**: 绕过无限debugger断点的指南  
-**包含**: 6种绕过方法
+### config.json
 
-#### `TAMPERMONKEY_SETUP.md`
-**内容**: Tampermonkey用户脚本安装指南
-
-#### `USAGE_GUIDE.md`
-**内容**: 参数分析脚本的使用指南
-
-## 🗑️ 已删除的文件
-
-以下文件已被删除（多余或过时）：
-- `analyze_api_params.js` - 旧版本，已被v2替代
-- `direct_videocdn_parser.py` - 完整版但不需要，simple版本已足够
-- `videocdn_ihelpy_page.html` - 临时文件
-- `media_staticfile_page.html` - 临时文件
-
-## 📦 依赖文件
-
-### requirements.txt
-包含所有Python依赖：
-- `requests` - HTTP请求
-- `brotli` - Brotli解压支持
-- `playwright` - 浏览器自动化（用于分析脚本）
-
-## 🎯 使用流程
-
-### 1. 直接解析（推荐）
-
-```bash
-# 安装依赖
-pip install -r requirements.txt
-
-# 运行解析器
-python direct_videocdn_parser_simple.py
+```json
+{
+  "cache_time": 7200,
+  "api_site": {
+    "站点名称": {
+      "api": "API地址",
+      "name": "显示名称",
+      "official_parser": true
+    }
+  }
+}
 ```
 
-### 2. 浏览器分析
+- **cache_time**: 缓存时间（秒），默认7200秒（2小时）
+- **api_site**: API站点配置
+  - **api**: API基础地址
+  - **name**: 站点显示名称
+  - **official_parser**: 是否使用官方解析器
 
-```bash
-# 运行浏览器分析脚本
-python analyze_videocdn_ihelpy.py
+## 🚀 部署说明
+
+### 群晖NAS部署
+
+1. **准备目录**：
+   ```bash
+   mkdir -p /volume1/docker/video-parser/data
+   ```
+
+2. **复制配置文件**：
+   ```bash
+   cp config.json.example /volume1/docker/video-parser/data/config.json
+   # 编辑config.json，配置API站点
+   ```
+
+3. **构建镜像**：
+   ```bash
+   docker build -t video-parser:latest .
+   ```
+
+4. **运行容器**：
+   ```bash
+   docker run -d \
+     --name video-parser \
+     -p 1233:8000 \
+     -v /volume1/docker/video-parser/data:/app/data \
+     video-parser:latest
+   ```
+
+   或使用Docker Compose：
+   ```bash
+   docker-compose up -d
+   ```
+
+5. **验证服务**：
+   ```bash
+   curl http://localhost:1233/health
+   ```
+
+## 📊 API接口
+
+### 1. 视频解析接口
+
+```
+POST /api/v1/parse
+Content-Type: application/json
+
+{
+  "video_url": "https://www.iqiyi.com/v_xxx.html",
+  "parser_url": "https://jx.789jiexi.com"  // 可选
+}
 ```
 
-### 3. 参数分析
+### 2. 资源检索接口
 
-1. 安装Tampermonkey
-2. 创建新脚本，粘贴 `analyze_api_params_persistent.js`
-3. 访问目标页面
-4. 在Console中运行分析函数
+```
+POST /api/v1/search
+Content-Type: application/json
 
-## 📊 输出文件
+{
+  "keyword": "新僵尸先生",
+  "page": 1  // 可选
+}
+```
 
-解析器会生成以下文件：
-- `videocdn_parse_result.json` - 解析结果
-- `videocdn_ihelpy_analysis.json` - 浏览器分析结果（如果运行了分析脚本）
+### 3. 健康检查接口
 
-这些文件在 `.gitignore` 中，不会被提交到Git。
+```
+GET /health
+```
 
-## 🔄 其他项目文件
+## 📌 注意事项
 
-项目中还包含其他解析器的相关文件：
-- `final_direct_parser_v2.py` - jx.789jiexi.com解析器
-- `browser_decrypt_parser.py` - 浏览器解密解析器
-- `analyze_playerjy_parser.py` - playerjy解析器
-- `analyze_media_staticfile.py` - media.staticfile解析器
+1. **配置文件位置**：config.json需要放在/data目录，容器启动时会自动加载
+2. **数据持久化**：/data目录需要挂载到宿主机，确保数据不丢失
+3. **端口映射**：内部端口8000，外部端口1233
+4. **日志位置**：日志文件存储在/data/logs目录
+5. **z参数更新**：z参数自动更新，存储在/data/z_params.json
 
-这些文件保留用于参考，但不属于videocdn.ihelpy.net项目。
+## 🔄 更新说明
 
+- 修改config.json后，需要重启容器才能生效
+- z参数会自动更新，无需手动干预
+- 日志文件会自动轮转，避免占用过多空间

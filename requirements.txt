@@ -1,4 +1,19 @@
+# FastAPI和相关依赖
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+
+# HTTP请求
 requests>=2.31.0
+
+# 压缩支持
 brotli>=1.1.0
+
+# 浏览器自动化（用于z参数更新）
 playwright>=1.40.0
-flask>=2.3.0
+
+# 加密解密
+pycryptodome>=3.19.0
+
+# 定时任务
+APScheduler>=3.10.0

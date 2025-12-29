@@ -1,0 +1,21 @@
+{
+  "cache_time": 7200,
+  "api_site": {
+    "789caiji": {
+      "api": "https://www.caiji.cyou/api.php/provide/vod",
+      "name": "789采集",
+      "official_parser": true
+    },
+    "金蝉": {
+      "api": "https://zy.jinchancaiji.com/api.php/provide/vod",
+      "name": "金蝉采集",
+      "official_parser": true
+    },
+    "山海": {
+      "api": "https://zy.sh0o.cn/api.php/provide/vod",
+      "name": "山海采集",
+      "official_parser": true
+    }
+  }
+}
+

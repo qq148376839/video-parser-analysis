@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  video-parser:
+    build: .
+    container_name: video-parser
+    ports:
+      - "1233:8000"  # 外部端口1233映射到内部端口8000
+    volumes:
+      - ./data:/app/data  # 挂载data目录
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
