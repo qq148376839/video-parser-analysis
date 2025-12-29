@@ -218,7 +218,7 @@ class FinalDirectParserV2:
         return None
     
     def follow_redirect_to_final_m3u8(self, initial_url: str) -> Optional[str]:
-        """跟踪重定向获取最终m3u8"""
+        """跟踪重定向获取最终m3u8或mp4"""
         print(f"\n[步骤4] 跟踪重定向...")
         print(f"   初始URL: {initial_url}")
         
@@ -233,6 +233,11 @@ class FinalDirectParserV2:
                     
                     print(f"   🔄 重定向 ({response.status_code}) → {redirect_url}")
                     
+                    # 如果重定向到mp4文件，直接返回
+                    if '.mp4' in redirect_url.lower():
+                        print(f"   ✅ 重定向到mp4文件，直接返回")
+                        return redirect_url
+                    
                     # 如果重定向到最终m3u8 API
                     if 'api/m3u8' in redirect_url or 'm3u8.shipinbofang.net' in redirect_url:
                         return self.get_final_m3u8(redirect_url)
@@ -241,9 +246,17 @@ class FinalDirectParserV2:
             
             elif response.status_code == 200:
                 content = response.text
+                content_type = response.headers.get('Content-Type', '').lower()
+                
+                # 检查是否是m3u8格式
                 if content.strip().startswith('#EXTM3U'):
                     print(f"   ✅ 这是最终的m3u8播放列表")
                     print(f"   📊 包含 {content.count('#EXTINF')} 个视频片段")
+                    return initial_url
+                
+                # 检查是否是mp4文件
+                if 'video/mp4' in content_type or '.mp4' in initial_url.lower():
+                    print(f"   ✅ 这是mp4视频文件")
                     return initial_url
             
             return None
@@ -345,9 +358,14 @@ class FinalDirectParserV2:
             print(f"   💡 建议：直接使用API URL作为m3u8链接")
             print(f"   API URL: {final_url}")
             
-            # 即使不是标准m3u8格式，如果URL包含m3u8，也返回它
-            if '.m3u8' in final_url or 'm3u8' in final_url.lower():
+            # 即使不是标准m3u8格式，如果URL包含m3u8或mp4，也返回它
+            if '.m3u8' in final_url.lower() or 'm3u8' in final_url.lower():
                 print(f"   ✅ URL包含m3u8关键字，返回此URL")
+                return final_url
+            
+            # 如果是mp4文件，也返回（可以直接播放）
+            if '.mp4' in final_url.lower():
+                print(f"   ✅ URL是mp4文件，返回此URL")
                 return final_url
             
             return None

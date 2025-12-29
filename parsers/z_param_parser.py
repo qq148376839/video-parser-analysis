@@ -156,18 +156,22 @@ class ZParamParser:
             
             logger.info(f"使用z参数方案解析: {video_url}")
             
-            # 检查z参数是否过期
-            if z_param_manager.is_expired():
-                logger.info("z参数已过期，尝试更新...")
-                # 尝试更新z参数
+            # 检查z参数是否过期或不存在
+            if z_param_manager.is_expired() or not z_param_manager.get_z_param():
+                logger.info("z参数已过期或不存在，尝试更新...")
+                # 先尝试HTTP方式（快速）
                 new_z = z_param_manager.update_with_http(video_url)
+                # 如果HTTP方式失败，尝试Playwright方式（需要浏览器）
                 if not new_z:
-                    logger.warning("z参数更新失败，将尝试使用当前参数")
+                    logger.info("HTTP方式失败，尝试Playwright方式...")
+                    new_z = z_param_manager.update_with_playwright(video_url)
+                if not new_z:
+                    logger.warning("z参数更新失败，将尝试使用当前参数（如果存在）")
             
             # 构造API URL
             api_url = self.construct_api_url(video_url)
             if not api_url:
-                logger.error("无法构造API URL")
+                logger.error("无法构造API URL（z参数不存在）")
                 return None
             
             # 调用API

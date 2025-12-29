@@ -3,8 +3,9 @@ FROM python:3.11-slim
 # 设置工作目录
 WORKDIR /app
 
-# 安装系统依赖（Playwright需要）
+# 安装系统依赖（Playwright需要 + curl用于健康检查）
 RUN apt-get update && apt-get install -y \
+    curl \
     wget \
     gnupg \
     libnss3 \
