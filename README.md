@@ -49,13 +49,14 @@ curl http://localhost:1233/health
 #### 1. 视频解析接口
 
 ```bash
-POST /api/v1/parse
-Content-Type: application/json
+GET /api/v1/parse?url={video_url}&parser_url={parser_url}
 
-{
-  "video_url": "https://www.iqiyi.com/v_xxx.html",
-  "parser_url": "https://jx.789jiexi.com"  // 可选
-}
+参数：
+- url: 要解析的视频URL（必填）
+- parser_url: 解析网站URL（可选，默认https://jx.789jiexi.com）
+
+示例：
+GET /api/v1/parse?url=https://www.iqiyi.com/v_xxx.html&parser_url=https://jx.789jiexi.com
 ```
 
 响应：
@@ -74,13 +75,15 @@ Content-Type: application/json
 #### 2. 资源检索接口
 
 ```bash
-POST /api/v1/search
-Content-Type: application/json
+GET /api/v1/search?ac=videolist&wd={keyword}&page={page}
 
-{
-  "keyword": "新僵尸先生",
-  "page": 1  // 可选
-}
+参数：
+- ac: 固定值 "videolist"（必填）
+- wd: 搜索关键词（必填）
+- page: 页码（可选，默认1）
+
+示例：
+GET /api/v1/search?ac=videolist&wd=新僵尸先生&page=1
 ```
 
 响应：

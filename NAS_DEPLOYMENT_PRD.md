@@ -158,8 +158,8 @@ Response (失败):
 ```
 
 **交互流程**：
-1. 客户端发送POST请求到 `/api/v1/parse`
-2. 服务端验证请求参数
+1. 客户端发送GET请求到 `/api/v1/parse?url={video_url}&parser_url={parser_url}`
+2. 服务端验证请求参数（url参数必填）
 3. 检查z参数是否过期
 4. 如果z参数有效，使用API方式解析（快速路径）
 5. 如果z参数过期，先尝试模拟获取新参数，再解析
@@ -231,34 +231,88 @@ Response (全部解析失败):
 }
 ```
 
-**交互流程**：
-1. 客户端发送POST请求到 `/api/v1/search`
-2. 读取config.json配置文件，获取API站点列表
-3. 并发调用所有配置的API站点：`{api_url}/?ac=videolist&wd={keyword}`
-4. 合并所有API返回的数据：
-   - 按`vod_name`去重（相同名称只保留一个）
-   - 按`vod_play_url`中的平台去重（bilibili、qq、youku、iqiyi等）
-   - 合并相同平台的资源
-5. 解析合并后的视频地址：
-   - 解析`vod_play_url`中的每个视频URL
-   - 成功解析的替换为m3u8地址
-   - 解析失败的删除该资源
-6. 如果某个资源的`vod_play_url`全部解析失败，删除该资源
-7. 返回最终结果
+**交互流程**（详细步骤）：
+1. **接收请求**：客户端发送GET请求到 `/api/v1/search?ac=videolist&wd={keyword}&page={page}`
+   - `ac`参数固定为`videolist`
+   - `wd`参数为搜索关键词（必填）
+   - `page`参数为页码（可选，默认1）
+2. **读取配置**：从`/app/data/config.json`读取API站点配置
+3. **并发搜索**：并发调用所有配置的API站点
+   - URL格式：`{api_url}/?ac=videolist&wd={url_encoded_keyword}`
+   - 示例：`https://zy.sh0o.cn/api.php/provide/vod/?ac=videolist&wd=%E6%96%B0%E5%83%B5%E5%B0%B8%E5%85%88%E7%94%9F`
+   - 超时时间：10秒
+4. **数据合并去重**：
+   - **第一步**：按`vod_name`去重（相同名称的资源合并为一个）
+   - **第二步**：解析`vod_play_url`，识别平台并去重
+     - 格式：`正片$url1$$$正片$url2$$$标签$url3`
+     - 识别平台：bilibili、vqq、youku、iqiyi等
+     - 相同平台只保留一个URL
+     - 不同平台的URL全部保留
+5. **解析视频地址**：
+   - 遍历合并后的资源列表
+   - 对每个资源的`vod_play_url`中的每个URL进行解析
+   - 先尝试z参数方案，失败则尝试解密方案
+   - 解析成功：替换为m3u8地址，格式：`正片${m3u8_url}`
+   - 解析失败：删除该URL
+6. **资源过滤**：
+   - 如果某个资源的所有URL都解析失败（`vod_play_url`为空），删除该资源
+   - 如果所有资源都解析失败，返回空列表
+7. **返回结果**：返回成功解析的资源列表
 
-**数据去重逻辑**：
-- **按名称去重**：`vod_name`相同的资源只保留一个
-- **按平台去重**：`vod_play_url`格式为：`正片$url1$$$正片$url2$$$...`
-  - 解析每个URL，识别平台（bilibili、qq、youku、iqiyi等）
-  - 相同平台的URL只保留一个
-  - 合并不同平台的URL
+**数据去重逻辑**（详细说明）：
+- **第一步：按名称去重**
+  - `vod_name`相同的资源只保留一个
+  - 如果多个API站点返回相同名称的资源，合并它们的`vod_play_url`
+  
+- **第二步：按平台去重和合并**
+  - `vod_play_url`格式为：`正片$url1$$$正片$url2$$$...` 或 `标签$url1$$$标签$url2$$$...`
+  - 解析每个URL，识别平台：
+    - `bilibili.com` 或 `b23.tv` → `bilibili`
+    - `v.qq.com` 或 `qq.com` → `qq` (或 `vqq`)
+    - `youku.com` → `youku`
+    - `iqiyi.com` → `iqiyi`
+    - `mgtv.com` → `mgtv`
+    - `le.com` → `letv`
+  - **合并规则**：
+    - 相同平台的URL只保留一个（优先保留第一个）
+    - 不同平台的URL全部保留
+    - 示例：
+      - API A返回：`iqiyi` + `youku`
+      - API B返回：`bilibili`
+      - API C返回：`youku`
+      - 合并结果：`bilibili` + `iqiyi` + `youku`（去重后）
 
-**解析逻辑**：
-- 解析`vod_play_url`中的每个视频URL
-- 使用功能1的解析接口解析每个URL
-- 解析成功：替换为m3u8地址，格式：`正片${m3u8_url}`
-- 解析失败：删除该URL
-- 如果某个资源的所有URL都解析失败，删除该资源
+**解析逻辑**（详细说明）：
+1. **遍历合并后的资源列表**
+   - 对每个资源的`vod_play_url`进行处理
+
+2. **解析每个视频URL**
+   - 从`vod_play_url`中提取所有URL（格式：`标签$url$$$标签$url`）
+   - 对每个URL调用解析接口（功能1）：
+     - 先尝试z参数方案
+     - 失败则尝试解密方案
+   - 解析成功：将URL替换为m3u8地址，格式保持：`正片${m3u8_url}`
+   - 解析失败：删除该URL（不保留在结果中）
+
+3. **资源过滤**
+   - 如果某个资源的所有URL都解析失败（`vod_play_url`为空），删除该资源
+   - 如果所有资源都解析失败，返回空列表：
+     ```json
+     {
+       "code": 1,
+       "msg": "数据列表",
+       "page": 1,
+       "pagecount": 0,
+       "limit": 20,
+       "total": 0,
+       "list": []
+     }
+     ```
+
+4. **返回结果**
+   - 只返回成功解析的资源
+   - `vod_play_url`中只包含成功解析的m3u8地址
+   - 格式示例：`正片${m3u8_url}`（如果只有一个）或 `正片${m3u8_url1}$$$正片${m3u8_url2}`（如果有多个）
 
 **配置文件格式**（config.json）：
 ```json
@@ -705,14 +759,11 @@ Response:
 
 **解析接口**：
 ```
-POST /api/v1/parse
-Content-Type: application/json
+GET /api/v1/parse?url={video_url}&parser_url={parser_url}
 
-Request Body:
-{
-  "video_url": "string (required)",
-  "parser_url": "string (optional, default: https://jx.789jiexi.com)"
-}
+Query Parameters:
+- url: string (required) - 要解析的视频URL
+- parser_url: string (optional, default: https://jx.789jiexi.com) - 解析网站URL
 
 Response:
 {
@@ -724,18 +775,19 @@ Response:
   },
   "error": "string (if success is false)"
 }
+
+示例：
+GET /api/v1/parse?url=https://www.iqiyi.com/v_xxx.html&parser_url=https://jx.789jiexi.com
 ```
 
 **资源检索接口**：
 ```
-POST /api/v1/search
-Content-Type: application/json
+GET /api/v1/search?ac=videolist&wd={keyword}&page={page}
 
-Request Body:
-{
-  "keyword": "string (required)",
-  "page": number (optional, default: 1)
-}
+Query Parameters:
+- ac: string (required) - 固定值 "videolist"
+- wd: string (required) - 搜索关键词
+- page: number (optional, default: 1) - 页码
 
 Response:
 {
@@ -755,6 +807,9 @@ Response:
     }
   ]
 }
+
+示例：
+GET /api/v1/search?ac=videolist&wd=新僵尸先生&page=1
 ```
 
 **健康检查接口**：

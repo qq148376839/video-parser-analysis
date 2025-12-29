@@ -3,11 +3,11 @@ FastAPI主服务
 提供视频解析和资源检索API接口
 """
 import time
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, HttpUrl
 from typing import Optional
 from contextlib import asynccontextmanager
+from urllib.parse import unquote
 
 from utils.logger import logger, setup_logger
 from utils.config_loader import config_loader
@@ -59,23 +59,7 @@ app = FastAPI(
 )
 
 
-# 请求模型
-class ParseRequest(BaseModel):
-    video_url: HttpUrl
-    parser_url: Optional[str] = "https://jx.789jiexi.com"
-
-
-class SearchRequest(BaseModel):
-    keyword: str
-    page: Optional[int] = 1
-
-
-# 响应模型
-class ParseResponse(BaseModel):
-    success: bool
-    data: Optional[dict] = None
-    error: Optional[str] = None
-    fallback_used: Optional[bool] = False
+# 注意：改为GET方法，使用Query参数，不再使用Pydantic模型
 
 
 @app.get("/")
@@ -92,20 +76,30 @@ async def root():
     }
 
 
-@app.post("/api/v1/parse", response_model=ParseResponse)
-async def parse_video(request: ParseRequest):
+@app.get("/api/v1/parse")
+async def parse_video(
+    url: str = Query(..., description="要解析的视频URL"),
+    parser_url: Optional[str] = Query("https://jx.789jiexi.com", description="解析网站URL（可选）")
+):
     """
     解析视频URL，返回m3u8链接
     
     Args:
-        request: 解析请求，包含video_url和可选的parser_url
+        url: 要解析的视频URL（必填）
+        parser_url: 解析网站URL（可选，默认https://jx.789jiexi.com）
     
     Returns:
         解析结果，包含m3u8_url和解析方法
+    
+    示例：
+        GET /api/v1/parse?url=https://www.iqiyi.com/v_xxx.html&parser_url=https://jx.789jiexi.com
     """
     start_time = time.time()
-    video_url = str(request.video_url)
-    parser_url = request.parser_url
+    video_url = url.strip()
+    
+    # 验证URL格式
+    if not video_url or not video_url.startswith(('http://', 'https://')):
+        raise HTTPException(status_code=400, detail="无效的视频URL格式，必须以http://或https://开头")
     
     logger.info(f"收到解析请求: {video_url}")
     
@@ -126,50 +120,63 @@ async def parse_video(request: ParseRequest):
         
         if m3u8_url:
             logger.info(f"解析成功 ({method}): {m3u8_url[:100]}... (耗时: {parse_time:.2f}秒)")
-            return ParseResponse(
-                success=True,
-                data={
+            return {
+                "success": True,
+                "data": {
                     "m3u8_url": m3u8_url,
                     "method": method,
                     "parse_time": round(parse_time, 2)
                 },
-                fallback_used=fallback_used
-            )
+                "fallback_used": fallback_used
+            }
         else:
             logger.warning(f"解析失败 (耗时: {parse_time:.2f}秒)")
-            return ParseResponse(
-                success=False,
-                error="所有解析方案都失败",
-                fallback_used=fallback_used
-            )
+            return {
+                "success": False,
+                "error": "所有解析方案都失败",
+                "fallback_used": fallback_used
+            }
             
     except Exception as e:
         logger.error(f"解析异常: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"解析失败: {str(e)}")
 
 
-@app.post("/api/v1/search")
-async def search_videos(request: SearchRequest):
+@app.get("/api/v1/search")
+async def search_videos(
+    ac: str = Query("videolist", description="固定值：videolist"),
+    wd: str = Query(..., description="搜索关键词（必填）"),
+    page: Optional[int] = Query(1, description="页码（可选，默认1）")
+):
     """
     搜索资源并解析视频地址
     
     Args:
-        request: 搜索请求，包含keyword和可选的page
+        ac: 固定值 "videolist"
+        wd: 搜索关键词（必填）
+        page: 页码（可选，默认1）
     
     Returns:
         搜索结果，包含解析后的m3u8地址
+    
+    示例：
+        GET /api/v1/search?ac=videolist&wd=新僵尸先生&page=1
     """
     start_time = time.time()
-    keyword = request.keyword
-    page = request.page
+    
+    # 验证ac参数
+    if ac != "videolist":
+        raise HTTPException(status_code=400, detail=f"参数ac必须为'videolist'，当前值: {ac}")
+    
+    keyword = unquote(wd).strip()  # URL解码关键词并去除空格
     
     logger.info(f"收到搜索请求: {keyword} (页码: {page})")
     
-    if not keyword or not keyword.strip():
+    if not keyword:
         raise HTTPException(status_code=400, detail="关键词不能为空")
     
     try:
-        result = search_parser.search_and_parse(keyword.strip())
+        result = search_parser.search_and_parse(keyword)
         
         search_time = time.time() - start_time
         logger.info(f"搜索完成 (耗时: {search_time:.2f}秒, 结果数: {result.get('total', 0)})")

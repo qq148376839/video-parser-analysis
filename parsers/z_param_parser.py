@@ -149,6 +149,11 @@ class ZParamParser:
             m3u8链接，如果失败返回None
         """
         try:
+            # 验证URL格式
+            if not video_url or not video_url.startswith(('http://', 'https://')):
+                logger.error(f"无效的视频URL格式: {video_url}")
+                return None
+            
             logger.info(f"使用z参数方案解析: {video_url}")
             
             # 检查z参数是否过期

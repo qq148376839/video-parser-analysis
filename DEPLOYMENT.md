@@ -114,20 +114,12 @@ curl http://localhost:1233/health
 
 ### 2. 测试解析接口
 ```bash
-curl -X POST http://localhost:1233/api/v1/parse \
-  -H "Content-Type: application/json" \
-  -d '{
-    "video_url": "https://www.iqiyi.com/v_xxx.html"
-  }'
+curl "http://localhost:1233/api/v1/parse?url=https://www.iqiyi.com/v_xxx.html&parser_url=https://jx.789jiexi.com"
 ```
 
 ### 3. 测试搜索接口
 ```bash
-curl -X POST http://localhost:1233/api/v1/search \
-  -H "Content-Type: application/json" \
-  -d '{
-    "keyword": "新僵尸先生"
-  }'
+curl "http://localhost:1233/api/v1/search?ac=videolist&wd=新僵尸先生&page=1"
 ```
 
 ## 📁 目录结构
