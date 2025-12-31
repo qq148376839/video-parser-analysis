@@ -478,3 +478,380 @@ class RedirectTracker:
         return current_url if '.m3u8' in current_url else None
 ```
 </examples>
+
+<development_rules>
+## 开发规则：浏览器自动化与反爬虫机制
+
+### /dev
+**规则名称**: 开发规则快捷入口
+
+**触发场景**: 
+当开发工程师需要编写浏览器自动化代码或查看开发规则时，使用 `/dev` 快速访问。
+
+**快捷命令映射**:
+- `/dev` 或 `/dev help` - 显示所有可用规则和快捷命令
+- `/dev browser` 或 `/dev standalone` - 等同于 `/use-standalone-browser`
+- `/dev stealth` - 等同于 `/add-stealth-script`
+- `/dev checklist` - 等同于 `/anti-detection-checklist`
+- `/dev pattern` - 等同于 `/browser-automation-pattern`
+- `/dev error` - 等同于 `/error-handling-pattern`
+- `/dev performance` - 等同于 `/performance-optimization`
+
+**使用示例**:
+```
+用户: /dev browser
+AI: [显示独立浏览器启动的标准实现代码]
+
+用户: /dev stealth
+AI: [显示反爬虫脚本的标准实现代码]
+
+用户: /dev checklist
+AI: [显示反爬虫检测检查清单]
+```
+
+**规则要求**:
+- 当用户输入 `/dev` 相关命令时，必须提供对应的完整规则内容
+- 优先使用 `/dev` 快捷命令，提供更友好的交互体验
+- 如果用户只输入 `/dev`，显示所有可用规则的概览
+
+### /use-standalone-browser
+**规则名称**: 使用独立浏览器实例进行爬取分析
+
+**触发场景**: 
+当开发工程师需要编写代码模拟爬取或分析网站信息时，必须使用独立浏览器实例。
+
+**规则要求**:
+1. **必须使用独立Chrome浏览器实例**：
+   - 使用 `subprocess.Popen` 启动独立的Chrome进程
+   - 使用 `--remote-debugging-port` 参数启用调试端口
+   - 使用 `connect_over_cdp()` 连接到已启动的浏览器
+   - 不要使用 `chromium.launch()` 直接启动（容易被检测）
+
+2. **标准实现模板**:
+```python
+import subprocess
+import tempfile
+import socket
+import os
+import shutil
+from playwright.async_api import async_playwright
+
+def get_free_port():
+    """获取一个未被占用的端口"""
+    s = socket.socket()
+    s.bind(('', 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+def launch_chrome(url="about:blank", chrome_path=None):
+    """启动独立的Chrome浏览器实例"""
+    if not chrome_path:
+        possible_paths = [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            os.path.expanduser(r"~\AppData\Local\Google\Chrome\Application\chrome.exe"),
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                chrome_path = path
+                break
+    
+    debug_port = get_free_port()
+    temp_user_data_dir = tempfile.mkdtemp(prefix="chrome_automation_")
+    
+    args = [
+        chrome_path,
+        f'--remote-debugging-port={debug_port}',
+        f'--user-data-dir={temp_user_data_dir}',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-extensions',
+        '--no-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-web-security',
+        '--disable-site-isolation-trials',
+        '--disable-features=BlockInsecurePrivateNetworkRequests',
+        '--disable-blink-features=AutomationControlled',
+        url
+    ]
+    
+    chrome_process = subprocess.Popen(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding='utf-8',
+        errors='ignore'
+    )
+    
+    # 等待浏览器启动
+    for i in range(30):
+        try:
+            s = socket.create_connection(('127.0.0.1', debug_port), timeout=1.0)
+            s.close()
+            return chrome_process, debug_port, temp_user_data_dir
+        except Exception:
+            if chrome_process.poll() is not None:
+                return None, None, None
+            time.sleep(1)
+    
+    chrome_process.terminate()
+    return None, None, None
+
+# 使用方式
+async def example():
+    chrome_process, debug_port, user_data_dir = launch_chrome()
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.connect_over_cdp(f"http://127.0.0.1:{debug_port}")
+            # ... 使用浏览器
+    finally:
+        if chrome_process:
+            chrome_process.terminate()
+        if user_data_dir:
+            shutil.rmtree(user_data_dir, ignore_errors=True)
+```
+
+3. **禁止的做法**:
+   - ❌ 不要使用 `browser = await p.chromium.launch()` 直接启动
+   - ❌ 不要使用 `headless=True` 模式（容易被检测）
+   - ❌ 不要使用默认的自动化浏览器特征
+
+### /add-stealth-script
+**规则名称**: 添加反爬虫脚本
+
+**触发场景**: 
+当使用浏览器自动化时，必须添加反爬虫脚本以隐藏自动化特征。
+
+**规则要求**:
+1. **必须添加反爬虫脚本**：
+   - 隐藏 `navigator.webdriver` 属性
+   - 设置真实的 `navigator.platform` 和 `navigator.languages`
+   - 添加 `window.chrome` 对象
+   - 禁用 `debugger` 函数
+
+2. **标准实现模板**:
+```python
+async def add_stealth_script(context: BrowserContext):
+    """添加反爬虫脚本"""
+    stealth_script = """
+    (function() {
+        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        delete navigator.__proto__.webdriver;
+        Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+        Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN', 'zh', 'en'] });
+        window.chrome = { runtime: {}, loadTimes: function() {}, csi: function() {}, app: {} };
+        window.debugger = function() {};
+        console.debug = () => {};
+    })();
+    """
+    await context.add_init_script(script=stealth_script)
+
+# 使用方式
+async def example():
+    context = await browser.new_context(
+        viewport={'width': 1920, 'height': 1080},
+        user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    )
+    await add_stealth_script(context)
+```
+
+3. **必须设置的浏览器上下文参数**:
+   - `user_agent`: 使用真实的浏览器User-Agent
+   - `viewport`: 设置合理的视口大小
+   - `locale`: 设置语言环境
+   - `timezone_id`: 设置时区（可选）
+
+### /anti-detection-checklist
+**规则名称**: 反爬虫检测检查清单
+
+**触发场景**: 
+在编写任何浏览器自动化代码时，必须遵循此检查清单。
+
+**检查清单**:
+- [ ] ✅ 使用独立Chrome浏览器实例（`launch_chrome()` + `connect_over_cdp()`）
+- [ ] ✅ 添加反爬虫脚本（`add_stealth_script()`）
+- [ ] ✅ 设置真实的User-Agent
+- [ ] ✅ 设置合理的视口大小（1920x1080）
+- [ ] ✅ 禁用自动化控制特征（`--disable-blink-features=AutomationControlled`）
+- [ ] ✅ 使用临时用户数据目录（避免Cookie污染）
+- [ ] ✅ 清理浏览器进程和临时文件（finally块）
+- [ ] ✅ 添加适当的等待时间（避免请求过快）
+- [ ] ✅ 处理网络错误和超时
+- [ ] ✅ 记录调试信息（便于排查问题）
+
+### /browser-automation-pattern
+**规则名称**: 浏览器自动化标准模式
+
+**触发场景**: 
+当需要编写浏览器自动化代码时，必须遵循此标准模式。
+
+**标准模式**:
+```python
+import asyncio
+import subprocess
+import tempfile
+import socket
+import time
+import os
+import shutil
+from playwright.async_api import async_playwright
+
+# 1. 定义辅助函数
+def get_free_port():
+    s = socket.socket()
+    s.bind(('', 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+def launch_chrome(chrome_path=None):
+    # ... 实现独立浏览器启动
+    pass
+
+async def add_stealth_script(context):
+    # ... 实现反爬虫脚本
+    pass
+
+# 2. 主函数模式
+async def main():
+    chrome_process = None
+    user_data_dir = None
+    
+    try:
+        # 启动独立浏览器
+        chrome_process, debug_port, user_data_dir = launch_chrome()
+        if not chrome_process:
+            print("❌ 启动浏览器失败")
+            return
+        
+        async with async_playwright() as p:
+            # 连接到浏览器
+            browser = await p.chromium.connect_over_cdp(f"http://127.0.0.1:{debug_port}")
+            
+            # 创建上下文并添加反爬虫脚本
+            context = await browser.new_context(
+                viewport={'width': 1920, 'height': 1080},
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            )
+            await add_stealth_script(context)
+            
+            page = await context.new_page()
+            
+            # 执行爬取逻辑
+            await page.goto("https://example.com")
+            # ... 其他操作
+            
+            await context.close()
+            await browser.close()
+    
+    finally:
+        # 清理资源
+        if chrome_process:
+            chrome_process.terminate()
+        if user_data_dir:
+            shutil.rmtree(user_data_dir, ignore_errors=True)
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+### /error-handling-pattern
+**规则名称**: 错误处理模式
+
+**触发场景**: 
+在浏览器自动化代码中，必须包含完善的错误处理。
+
+**错误处理要求**:
+1. **必须使用try-finally清理资源**:
+```python
+chrome_process = None
+user_data_dir = None
+
+try:
+    chrome_process, debug_port, user_data_dir = launch_chrome()
+    # ... 执行操作
+except Exception as e:
+    print(f"❌ 错误: {e}")
+    import traceback
+    traceback.print_exc()
+finally:
+    # 确保清理资源
+    if chrome_process:
+        try:
+            chrome_process.terminate()
+            chrome_process.wait(timeout=5)
+        except:
+            try:
+                chrome_process.kill()
+            except:
+                pass
+    
+    if user_data_dir:
+        cleanup_user_data(user_data_dir)
+```
+
+2. **必须处理常见错误**:
+   - 浏览器启动失败
+   - 连接超时
+   - 页面加载失败
+   - 网络请求失败
+   - 元素查找失败
+
+### /performance-optimization
+**规则名称**: 性能优化规则
+
+**触发场景**: 
+在编写浏览器自动化代码时，需要考虑性能优化。
+
+**优化要求**:
+1. **合理使用等待时间**:
+   - 使用 `wait_until='domcontentloaded'` 而不是 `'load'`
+   - 使用 `asyncio.sleep()` 而不是 `page.wait_for_timeout()`
+   - 避免不必要的长时间等待
+
+2. **资源管理**:
+   - 及时关闭不需要的页面和上下文
+   - 清理临时文件和目录
+   - 限制并发浏览器实例数量
+
+3. **网络优化**:
+   - 禁用不必要的资源加载（图片、CSS等，如需要）
+   - 使用请求拦截优化性能（谨慎使用）
+
+## 使用说明
+
+### /dev - 开发规则快捷入口（推荐使用）
+
+**快捷命令**: `/dev`
+
+当开发工程师需要编写浏览器自动化代码时，使用 `/dev` 命令可以快速访问所有开发规则：
+
+**主要规则**:
+- `/dev browser` 或 `/dev standalone` - 使用独立浏览器实例（等同于 `/use-standalone-browser`）
+- `/dev stealth` - 添加反爬虫脚本（等同于 `/add-stealth-script`）
+- `/dev checklist` - 反爬虫检测检查清单（等同于 `/anti-detection-checklist`）
+- `/dev pattern` - 浏览器自动化标准模式（等同于 `/browser-automation-pattern`）
+- `/dev error` - 错误处理模式（等同于 `/error-handling-pattern`）
+- `/dev performance` - 性能优化规则（等同于 `/performance-optimization`）
+
+**完整命令列表**（详细说明）:
+- `/use-standalone-browser` - 查看独立浏览器启动的标准实现
+- `/add-stealth-script` - 查看反爬虫脚本的标准实现
+- `/anti-detection-checklist` - 查看反爬虫检测检查清单
+- `/browser-automation-pattern` - 查看浏览器自动化标准模式
+- `/error-handling-pattern` - 查看错误处理模式
+- `/performance-optimization` - 查看性能优化规则
+
+**使用示例**:
+- 输入 `/dev` - 显示所有可用规则
+- 输入 `/dev browser` - 获取独立浏览器启动代码模板
+- 输入 `/dev stealth` - 获取反爬虫脚本代码模板
+- 输入 `/dev checklist` - 查看检查清单
+
+**重要提醒**:
+- 所有浏览器自动化代码必须遵循这些规则
+- 违反规则可能导致反爬虫检测失败
+- 代码审查时必须检查是否遵循这些规则
+- 优先使用 `/dev` 快捷命令，更易记忆和使用
+</development_rules>

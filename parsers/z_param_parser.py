@@ -5,9 +5,14 @@ z参数解析器模块
 import requests
 import json
 import re
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict
 from utils.logger import logger
 from utils.z_param_manager import z_param_manager
+
+# 创建线程池用于运行Playwright（避免asyncio冲突）
+_playwright_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="playwright")
 
 
 class ZParamParser:
@@ -164,7 +169,15 @@ class ZParamParser:
                 # 如果HTTP方式失败，尝试Playwright方式（需要浏览器）
                 if not new_z:
                     logger.info("HTTP方式失败，尝试Playwright方式...")
-                    new_z = z_param_manager.update_with_playwright(video_url)
+                    # 始终在线程池中运行Playwright，避免asyncio冲突
+                    # 因为即使parse()在单独线程中，Playwright仍可能检测到asyncio事件循环
+                    try:
+                        future = _playwright_executor.submit(z_param_manager.update_with_playwright, video_url)
+                        new_z = future.result(timeout=60)  # 最多等待60秒
+                    except Exception as e:
+                        logger.error(f"Playwright线程执行失败: {e}", exc_info=True)
+                        new_z = None
+                
                 if not new_z:
                     logger.warning("z参数更新失败，将尝试使用当前参数（如果存在）")
             

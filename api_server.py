@@ -104,15 +104,16 @@ async def parse_video(
     logger.info(f"收到解析请求: {video_url}")
     
     try:
-        # 先尝试z参数方案
-        m3u8_url = z_param_parser.parse(video_url)
+        # 先尝试z参数方案（在线程中运行，避免阻塞事件循环）
+        import asyncio
+        m3u8_url = await asyncio.to_thread(z_param_parser.parse, video_url)
         method = "z_param"
         fallback_used = False
         
-        # 如果失败，使用解密方案
+        # 如果失败，使用解密方案（也在线程中运行）
         if not m3u8_url:
             logger.info("z参数方案失败，切换到解密方案")
-            m3u8_url = decrypt_parser.parse(parser_url, video_url)
+            m3u8_url = await asyncio.to_thread(decrypt_parser.parse, parser_url, video_url)
             method = "decrypt"
             fallback_used = True
         

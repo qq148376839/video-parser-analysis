@@ -1,0 +1,69 @@
+# Docker部署必需文件清单
+
+## 核心文件（16个）
+
+### 主应用
+api_server.py
+healthcheck.py
+
+### 核心解析逻辑
+final_direct_parser_v2.py
+direct_videocdn_parser_simple.py
+
+### Docker配置
+Dockerfile
+docker-compose.yml
+.dockerignore
+requirements.txt
+
+### 配置文件
+config.json.example
+
+### parsers模块（4个文件）
+parsers/__init__.py
+parsers/z_param_parser.py
+parsers/decrypt_parser.py
+parsers/search_parser.py
+
+### utils模块（4个文件）
+utils/__init__.py
+utils/logger.py
+utils/config_loader.py
+utils/z_param_manager.py
+
+## 可选文件（推荐）
+
+start.sh                    # Linux启动脚本
+README.md                    # 项目说明（可自定义）
+
+## 总计
+
+必需文件：16个
+可选文件：2个
+总计：18个文件
+
+## 目录结构
+
+video-parser-service/
+├── api_server.py
+├── healthcheck.py
+├── final_direct_parser_v2.py
+├── direct_videocdn_parser_simple.py
+├── requirements.txt
+├── Dockerfile
+├── docker-compose.yml
+├── .dockerignore
+├── config.json.example
+├── start.sh (可选)
+├── README.md (可选)
+├── parsers/
+│   ├── __init__.py
+│   ├── z_param_parser.py
+│   ├── decrypt_parser.py
+│   └── search_parser.py
+└── utils/
+    ├── __init__.py
+    ├── logger.py
+    ├── config_loader.py
+    └── z_param_manager.py
+

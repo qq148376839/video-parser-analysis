@@ -17,3 +17,6 @@ pycryptodome>=3.19.0
 
 # 定时任务
 APScheduler>=3.10.0
+
+# Flask（可选，用于z_param_api_service.py）
+# flask>=2.3.0

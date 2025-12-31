@@ -45,6 +45,33 @@
 
 ---
 
+### hls.min.js 搜索结果
+
+| 关键字 | 找到数量 | 位置 | 说明 |
+|--------|---------|------|------|
+| `token` | ❌ 0处 | - | **未找到 token 相关代码** |
+| `sign` / `signature` | 4处 | 第1608, 3032, 3098, 8743行 | WebVTT签名验证（字幕相关） |
+| `encrypt` / `decrypt` | 114处 | 多处 | AES解密（视频片段解密） |
+| `timestamp` | 30处 | 多处 | 时间戳处理（视频同步） |
+| `loadLevel` / `loadPlaylist` | 18处 | 多处 | 播放列表加载 |
+| `XMLHttpRequest` | 8处 | 第9175, 9219, 9234等 | XHR请求处理 |
+| `xhrSetup` | 6处 | 第8118, 9178, 9213等 | XHR设置钩子 |
+
+**关键发现**：
+- ✅ **hls.min.js 中没有 token 计算逻辑**
+- ✅ **hls.min.js 中没有 URL 修改或参数添加逻辑**
+- ✅ **Hls.js 只是标准的 HLS 播放器库**，负责加载和播放 m3u8 文件
+- 📍 **xhrSetup 钩子**：允许外部代码在请求前修改 XHR（需要外部配置）
+
+**分析**：
+- `hls.min.js` 是标准的 HLS.js 库，不包含业务逻辑
+- token 的计算**不在 hls.js 中**，应该在调用 `hls.loadSource()` 之前就已经添加到 URL
+- 可能的 token 添加位置：
+  1. 在 `7zl.js` 或 `7zlplayer.js` 中，调用 `video()` 方法之前
+  2. 通过 `xhrSetup` 钩子动态添加（但需要外部配置）
+
+---
+
 ## 🔍 关键代码位置分析
 
 ### 1. m3u8格式检查（7zlplayer.js:2434）
@@ -138,6 +165,16 @@ switch (_0x344e20[_0x22489a(0x295, 'K*Uh')](_0x344e20['nQwww'], this['type']) &&
 1. **m3u8链接是通过 `video` 方法的 `url` 参数传入的**
    - 位置：`7zlplayer.js:2406` - `this['options']['video']['src'] = _0x55660d['url']`
    - 然后通过 `_0x2de0a3['src']` 传递给Hls.js
+   - **重要**：Hls.js 只是加载器，不会修改URL或添加token参数
+
+2. **hls.min.js 分析结果**
+   - ✅ **已确认**：hls.min.js 中没有 token 相关的代码
+   - ✅ **已确认**：hls.min.js 中没有 URL 修改或参数添加的逻辑
+   - ✅ **已确认**：Hls.js 使用 `xhrSetup` 钩子允许外部代码修改请求（但需要外部配置）
+   - 📍 **关键代码位置**：
+     - `hls.min.js:9217` - `xhrSetup` 回调调用：`i(e, t.url)`
+     - `hls.min.js:9222` - 直接使用传入的URL：`e.open("GET", t.url, !0)`
+   - **结论**：**token 的计算不在 hls.js 中**，应该在调用 `hls.loadSource()` 之前就已经添加到 URL 中
 
 2. **播放器会根据URL后缀判断格式**
    - m3u8 → 使用Hls.js
@@ -203,6 +240,94 @@ switch (_0x344e20[_0x22489a(0x295, 'K*Uh')](_0x344e20['nQwww'], this['type']) &&
 - `analyze_jx2s0_parser.py` - 已实现网络监听
 - `direct_jx2s0_parser.py` - 直接提取m3u8链接
 
+### 方向4：监听 iframe 中的网络请求（**强烈推荐**）
+
+**问题**：在 F12 的 Network 面板中看不到 token 获取接口，可能是因为请求在 iframe 中发起。
+
+**解决方案**：
+
+#### 方法A：使用自动监听脚本（推荐）
+
+已创建 `intercept_iframe_requests.py` 脚本，可以：
+- ✅ 监听**所有 frame**（包括主页面和所有 iframe）的网络请求
+- ✅ 自动识别 token 相关的请求
+- ✅ 自动识别 m3u8 相关的请求
+- ✅ 保存详细的请求和响应信息
+
+**使用方法**：
+```bash
+cd archive/jx2s0_analysis
+python intercept_iframe_requests.py
+```
+
+**输出**：
+- 控制台实时显示所有 token 相关请求
+- 保存到 `iframe_requests_intercept.json` 文件
+
+#### 方法B：浏览器开发者工具手动监听
+
+1. **启用 iframe 请求显示**：
+   - Chrome/Edge: Network 面板 → ⚙️ 设置 → 勾选 "Show all frames"
+   - Firefox: Network 面板 → ⚙️ 设置 → 勾选 "Show all frames"
+
+2. **过滤和搜索**：
+   - 在 Filter 框中输入：`api` 或 `jiexi` 或 `parse`
+   - 按 `Ctrl+F` 搜索：`token`、`m3u8`、`cachem3u8`
+
+3. **等待动态请求**：
+   - 页面加载后等待 10-30 秒
+   - token 请求可能在页面加载后动态发起
+
+#### 方法C：使用控制台拦截器
+
+在浏览器控制台中执行以下代码：
+
+```javascript
+// 拦截所有 XMLHttpRequest
+const originalOpen = XMLHttpRequest.prototype.open;
+XMLHttpRequest.prototype.open = function(method, url, ...args) {
+    if (url.includes('token') || url.includes('api') || url.includes('jiexi')) {
+        console.log('🔑 [TOKEN相关]', method, url);
+    }
+    return originalOpen.apply(this, [method, url, ...args]);
+};
+
+// 拦截所有 Fetch 请求
+const originalFetch = window.fetch;
+window.fetch = function(...args) {
+    const url = args[0];
+    if (typeof url === 'string' && (url.includes('token') || url.includes('api'))) {
+        console.log('🔑 [TOKEN相关]', url);
+    }
+    return originalFetch.apply(this, args);
+};
+```
+
+**详细指南**：参见 `IFRAME_REQUEST_INTERCEPT_GUIDE.md`
+
+### 方向5：分析 hls.js 的 xhrSetup 配置（如果存在）
+
+**方法**：
+1. 在浏览器控制台中检查 Hls 实例的配置
+2. 查看是否有 `xhrSetup` 回调函数
+3. 如果有，分析该回调函数是否添加了 token 参数
+
+**代码示例**：
+```javascript
+// 在浏览器控制台中执行
+var hls = new Hls();
+console.log(hls.config.xhrSetup);  // 查看是否有 xhrSetup 配置
+
+// 如果有 xhrSetup，可以查看其实现
+if (hls.config.xhrSetup) {
+    console.log(hls.config.xhrSetup.toString());
+}
+```
+
+**可能性**：
+- 如果存在 `xhrSetup`，token 可能在这里动态添加
+- 但根据代码分析，更可能是在调用 `hls.loadSource()` 之前就已经添加到 URL
+
 ---
 
 ## 📝 总结
@@ -228,6 +353,27 @@ switch (_0x344e20[_0x22489a(0x295, 'K*Uh')](_0x344e20['nQwww'], this['type']) &&
 | 7zlplayer.js | 2440 | Hls.js加载m3u8 | ⭐⭐⭐ |
 | 7zl.js | 256 | rc4解密调用 | ⭐⭐ |
 | 7zl.js | 2807 | rc4函数定义 | ⭐⭐ |
+| hls.min.js | 9217 | xhrSetup 回调调用 | ⭐ |
+| hls.min.js | 9222 | XHR open 调用 | ⭐ |
+
+### hls.min.js 分析结论
+
+**✅ 已确认**：
+- hls.min.js 是标准的 HLS.js 播放器库，不包含业务逻辑
+- **hls.min.js 中没有 token 计算或添加逻辑**
+- Hls.js 只是接收 m3u8 URL 并加载播放列表和片段
+
+**📌 重要结论**：
+- **token 的计算不在 hls.js 中**
+- token 应该在调用 `hls.loadSource(url)` 之前就已经添加到 URL
+- 可能的 token 添加位置：
+  1. 在 `7zl.js` 中，调用 `YKQ.video()` 之前
+  2. 在 `7zlplayer.js` 中，调用 `hls.loadSource()` 之前
+  3. 通过 `xhrSetup` 钩子动态添加（需要外部配置，但可能性较小）
+
+**🔍 下一步**：
+- 重点分析 `7zl.js` 中调用 `video()` 方法的代码
+- 查找 m3u8 URL 的生成和 token 添加逻辑
 
 ### 推荐方案
 
